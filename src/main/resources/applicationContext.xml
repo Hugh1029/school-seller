@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:context="http://www.springframework.org/schema/context"
+        xmlns:aop="http://www.springframework.org/schema/aop"
+        xmlns:p="http://www.springframework.org/schema/p"
+        xmlns:tx="http://www.springframework.org/schema/tx"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+                        http://www.springframework.org/schema/beans/spring-beans.xsd
+                        http://www.springframework.org/schema/context
+                        http://www.springframework.org/schema/context/spring-context.xsd
+                        http://www.springframework.org/schema/aop
+                        http://www.springframework.org/schema/aop/spring-aop.xsd
+                        http://www.springframework.org/schema/tx
+                        http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <!--开启注解扫描,扫描service与dao-->
+    <context:component-scan base-package="cn.answering.seller.service.**,cn.answering.seller.dao.**"></context:component-scan>
+
+    <!--引入外部文件作为数据配置信息-->
+    <context:property-placeholder file-encoding="UTF-8" location="classpath:datasoure.properties"></context:property-placeholder>
+
+    <!--配置数据源-->
+    <bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource">
+        <property name="username" value="${database.username}"></property>
+        <property name="password" value="${database.password}"></property>
+        <property name="driverClassName" value="${database.driver}"></property>
+        <property name="url" value="${database.url}"></property>
+        <!--初始化、最小、最大-->
+        <property name="initialSize" value="1"></property>
+        <property name="minIdle" value="1"></property>
+        <property name="maxActive" value="10"></property>
+
+    </bean>
+
+    <!--配置Session工厂-->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"></property>
+        <!--如果不需要在mybatis中配置神特殊的东西，可以不用这个配置，原本是将分页插件配置其中的，
+        现在将插件配置在Spring，故而省略该配置-->
+        <!--<property name="configLocation" value="mybatis-config.xml"></property>-->
+
+        <!--批量加载mapper文件-->
+        <!--如果不指定xml文件的位置，那么xml文件与接口在同一个目录下，就只要配置Mapper代理类-->
+        <property name="mapperLocations">
+            <array>
+                <value>classpath*:cn/answering/seller/mapper/*.xml</value>
+            </array>
+        </property>
+        <!--别名-->
+        <property name="typeAliasesPackage" value="cn.answering.seller.model"/>
+        <!--插件-->
+        <property name="plugins">
+            <array>
+                <!--分页插件-->
+                <bean  class="com.github.pagehelper.PageInterceptor">
+                    <property name="properties">
+                        <value>
+                            helperDialect=mysql
+                            reasonable=true
+                        </value>
+                    </property>
+                </bean>
+            </array>
+        </property>
+    </bean>
+
+    <!--使用Mapper代理类来配合MyBatis文件使用,这里不用spring-mybatis提供的，而是使用通过Mapper提供的-->
+    <bean class="tk.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="cn.answering.seller.dao"></property>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"></property>
+    </bean>
+
+    <!--配置事务管理器-->
+    <!--需要说明的是，hibernate配置事务管理器是将SqlSession配置进来，而mybatis是配置数据源-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"></property>
+    </bean>
+    <!--
+        在配置事务管理器后，有两种方法可以用来配置事务
+        1.注解的方式，需要用下面代码开启:
+        <tx:annotation-driven transaction-manager="transactionManager"></tx:annotation-driven>
+        然后使用@Transaction来使用事务
+        2.利用aop和tx来创建事务和切面
+    -->
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <tx:method name="insert*" propagation="REQUIRED" read-only="false" rollback-for="java.lang.Exception"/>
+            <tx:method name="delete*" propagation="REQUIRED" read-only="false" rollback-for="java.lang.Exception"/>
+            <tx:method name="update*" propagation="REQUIRED" read-only="false" rollback-for="java.lang.Exception"/>
+            <tx:method name="save*" propagation="REQUIRED" read-only="false" rollback-for="java.lang.Exception"/>
+            <tx:method name="add*" propagation="REQUIRED" read-only="false" rollback-for="java.lang.Exception"/>
+            <tx:method name="remove*" propagation="REQUIRED" read-only="false" rollback-for="java.lang.Exception"/>
+            <tx:method name="edit*" propagation="REQUIRED" read-only="false" rollback-for="java.lang.Exception"/>
+            <tx:method name="find*" propagation="SUPPORTS" read-only="true"/>
+            <tx:method name="query*" propagation="SUPPORTS" read-only="true"/>
+            <tx:method name="select*" propagation="SUPPORTS" read-only="true"/>
+            <tx:method name="get*" propagation="SUPPORTS" read-only="true"/>
+        </tx:attributes>
+    </tx:advice>
+
+    <!--aop配置-->
+    <aop:config>
+        <!--配置切点-->
+        <aop:pointcut id="txpoint" expression="execution(* cn.answering.seller.service.impl.*.*(..))"></aop:pointcut>
+        <!--advisor:包含连接点信息和横切代码-->
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="txpoint"/>
+    </aop:config>
+    <!--如果配置AspectJ注解的话，同样要开启注解:
+        <aop:aspectj-autoproxy></aop:aspectj-autoproxy>
+        @Component来注解一个bean
+        @Aspect，注解在切面类上
+        @Pointcut("execution()"):声明切入点
+        @Before(value="上面声明的切点的注解的方法名")
+    -->
+
+
+</beans>
